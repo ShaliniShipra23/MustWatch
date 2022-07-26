@@ -2,9 +2,7 @@ import React, { useState } from "react";
 import { useNotification } from "../../hooks";
 import { commonInputClasses } from "../../utils/theme";
 import Submit from "../form/Submit";
-import LiveSearch from "../LiveSearch";
 import TagsInput from "../TagsInput";
-import ModalContainer from "../modals/ModalContainer";
 import WritersModal from "../modals/WritersModal";
 import CastForm from "../form/CastForm";
 import CastModal from "../modals/CastModal";
@@ -17,58 +15,12 @@ import {
   statusOptions,
   typeOptions,
 } from "../../utils/options";
-
-export const results = [
-  {
-    id: "1",
-    avatar:
-      "https://images.unsplash.com/photo-1643713303351-01f540054fd7?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=200&q=80",
-    name: "John Doe",
-  },
-  {
-    id: "2",
-    avatar:
-      "https://images.unsplash.com/photo-1643883135036-98ec2d9e50a1?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=200&q=80",
-    name: "Chandri Anggara",
-  },
-  {
-    id: "3",
-    avatar:
-      "https://images.unsplash.com/photo-1578342976795-062a1b744f37?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=200&q=80",
-    name: "Amin RK",
-  },
-  {
-    id: "4",
-    avatar:
-      "https://images.unsplash.com/photo-1564227901-6b1d20bebe9d?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=200&q=80",
-    name: "Edward Howell",
-  },
-  {
-    id: "5",
-    avatar:
-      "https://images.unsplash.com/photo-1578342976795-062a1b744f37?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=200&q=80",
-    name: "Amin RK",
-  },
-  {
-    id: "6",
-    avatar:
-      "https://images.unsplash.com/photo-1564227901-6b1d20bebe9d?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=200&q=80",
-    name: "Edward Howell",
-  },
-];
-
-export const renderItem = (result) => {
-  return (
-    <div key={result.id} className="flex space-x-2 rounded overflow-hidden">
-      <img
-        src={result.avatar}
-        alt={result.name}
-        className="w-16 h-16 object-cover"
-      />
-      <p className="dark:text-white font-semibold">{result.name}</p>
-    </div>
-  );
-};
+import Label from "../Label";
+import DirectorSelector from "../DirectorSelector";
+import WriterSelector from "../WriterSelector";
+import ViewAllBtn from "../ViewAllButton";
+import LabelWithBadge from "../LabelWithBadge";
+import { validateMovie } from "../../utils/validator";
 
 const defaultMovieInfo = {
   title: "",
@@ -85,7 +37,7 @@ const defaultMovieInfo = {
   status: "",
 };
 
-export default function MovieForm() {
+export default function MovieForm({ onSubmit, busy }) {
   const [movieInfo, setMovieInfo] = useState({ ...defaultMovieInfo });
   const [showWritersModal, setShowWritersModal] = useState(false);
   const [showCastModal, setShowCastModal] = useState(false);
@@ -96,7 +48,46 @@ export default function MovieForm() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log(movieInfo);
+    const { error } = validateMovie(movieInfo);
+    if (error) updateNotification("error", error);
+
+    // cast, tags, genres, writers
+    const { tags, genres, cast, writers, director, poster } = movieInfo;
+
+    const formData = new FormData();
+    const finalMovieInfo = {
+      ...movieInfo,
+    };
+
+    finalMovieInfo.tags = JSON.stringify(tags);
+    finalMovieInfo.genres = JSON.stringify(genres);
+
+    // {
+    //   actor: { type: mongoose.Schema.Types.ObjectId, ref: "Actor" },
+    //   roleAs: String,
+    //   leadActor: Boolean,
+    // },
+
+    const finalCast = cast.map((c) => ({
+      actor: c.profile.id,
+      roleAs: c.roleAs,
+      leadActor: c.leadActor,
+    }));
+    finalMovieInfo.cast = JSON.stringify(finalCast);
+
+    if (writers.length) {
+      const finalWriters = writers.map((w) => w.id);
+      finalMovieInfo.writers = JSON.stringify(finalWriters);
+    }
+
+    if (director.id) finalMovieInfo.director = director.id;
+    if (poster) finalMovieInfo.poster = poster;
+
+    for (let key in finalMovieInfo) {
+      formData.append(key, finalMovieInfo[key]);
+    }
+
+    onSubmit(formData);
   };
 
   const updatePosterForUI = (file) => {
@@ -111,6 +102,7 @@ export default function MovieForm() {
       updatePosterForUI(poster);
       return setMovieInfo({ ...movieInfo, poster });
     }
+
     setMovieInfo({ ...movieInfo, [name]: value });
   };
 
@@ -186,7 +178,6 @@ export default function MovieForm() {
   const {
     title,
     storyLine,
-    director,
     writers,
     cast,
     tags,
@@ -231,17 +222,7 @@ export default function MovieForm() {
             <TagsInput value={tags} name="tags" onChange={updateTags} />
           </div>
 
-          <div>
-            <Label htmlFor="director">Director</Label>
-            <LiveSearch
-              name="director"
-              value={director.name}
-              placeholder="Search profile"
-              results={results}
-              renderItem={renderItem}
-              onSelect={updateDirector}
-            />
-          </div>
+          <DirectorSelector onSelect={updateDirector} />
 
           <div>
             <div className="flex justify-between">
@@ -255,13 +236,7 @@ export default function MovieForm() {
                 View All
               </ViewAllBtn>
             </div>
-            <LiveSearch
-              name="writers"
-              placeholder="Search profile"
-              results={results}
-              renderItem={renderItem}
-              onSelect={updateWriters}
-            />
+            <WriterSelector onSelect={updateWriters} />
           </div>
 
           <div>
@@ -283,7 +258,12 @@ export default function MovieForm() {
             name="releseDate"
           />
 
-          <Submit value="Upload" onClick={handleSubmit} type="button" />
+          <Submit
+            busy={busy}
+            value="Upload"
+            onClick={handleSubmit}
+            type="button"
+          />
         </div>
         <div className="w-[30%] space-y-5">
           <PosterSelector
@@ -340,45 +320,3 @@ export default function MovieForm() {
     </>
   );
 }
-
-const Label = ({ children, htmlFor }) => {
-  return (
-    <label
-      htmlFor={htmlFor}
-      className="dark:text-dark-subtle text-light-subtle font-semibold"
-    >
-      {children}
-    </label>
-  );
-};
-
-const LabelWithBadge = ({ children, htmlFor, badge = 0 }) => {
-  const renderBadge = () => {
-    if (!badge) return null;
-    return (
-      <span className="dark:bg-dark-subtle bg-light-subtle text-white absolute top-0 right-0 translate-x-2 -translate-y-1 text-xs w-5 h-5 rounded-full flex justify-center items-center">
-        {badge <= 9 ? badge : "9+"}
-      </span>
-    );
-  };
-
-  return (
-    <div className="relative">
-      <Label htmlFor={htmlFor}>{children}</Label>
-      {renderBadge()}
-    </div>
-  );
-};
-
-const ViewAllBtn = ({ visible, children, onClick }) => {
-  if (!visible) return null;
-  return (
-    <button
-      onClick={onClick}
-      type="button"
-      className="dark:text-white text-primary hover:underline transition"
-    >
-      {children}
-    </button>
-  );
-};
